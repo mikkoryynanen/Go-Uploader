@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 
@@ -15,12 +16,12 @@ const containerName = "files"
 type Functions interface {
 	GetFiles() ([]string, error)
 	Upload([]byte, string) error
+	Download(string) ([]byte, error)
 }
 
 type AzureFunctions struct {
 	subscriptionId		string
 	fileBaseUrl			string
-	
 }
 
 func NewAzureService() *AzureFunctions {
@@ -99,4 +100,36 @@ func (az *AzureFunctions) Upload(data []byte, filename string) error {
 	}
 
 	return nil
+}
+
+func (az *AzureFunctions) Download(filename string) ([]byte, error) {
+	ctx := context.Background()
+
+	credential, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+
+	client, err := azblob.NewClient(az.fileBaseUrl, credential, nil)
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+
+	// Download
+	resp, err := client.DownloadStream(ctx, containerName, filename, &azblob.DownloadStreamOptions{})
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	
+	reader := resp.Body
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+
+	return data, nil
 }
